@@ -164,6 +164,7 @@
         <div class="dpad-button dpad-right" id="rightBtn">→</div>
     </div>
     <div class="action-button" id="jumpBtn">JUMP</div>
+    <div class="action-button" id="fireBtn" style="background: #FFA500; border-color: #FF8C00;">FIRE</div>
 </div>
 
 <div id="gameOver">
@@ -208,14 +209,86 @@
     // 敵の配列
     let enemies = [];
 
+    // ブロックの配列
+    let blocks = [];
+
+    // ファイヤーボールの配列
+    let fireballs = [];
+
     // 入力状態
     let keys = {
         left: false,
         right: false,
         up: false,
-        jump: false
+        jump: false,
+        fire: false
     };
 
+    // ブロックを生成
+    function createBlocks() {
+        blocks = [];
+        const blockSize = 40;
+        
+        // 階段状のブロック
+        for (let i = 0; i < 3; i++) {
+            blocks.push({
+                x: 300 + i * blockSize,
+                y: 300 - i * blockSize,
+                width: blockSize,
+                height: blockSize
+            });
+        }
+
+        // 浮島ブロック群
+        for (let i = 0; i < 4; i++) {
+            blocks.push({
+                x: 600 + i * blockSize,
+                y: 220,
+                width: blockSize,
+                height: blockSize
+            });
+        }
+
+        // 高いタワー
+        for (let i = 0; i < 5; i++) {
+            blocks.push({
+                x: 900,
+                y: 300 - i * blockSize,
+                width: blockSize,
+                height: blockSize
+            });
+        }
+
+        // 長い橋
+        for (let i = 0; i < 6; i++) {
+            blocks.push({
+                x: 1200 + i * blockSize,
+                y: 200,
+                width: blockSize,
+                height: blockSize
+            });
+        }
+
+        // ジャンプ台
+        blocks.push({
+            x: 1500,
+            y: 280,
+            width: blockSize,
+            height: blockSize
+        });
+
+        // 最後の障害物
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                blocks.push({
+                    x: 1700 + j * blockSize,
+                    y: 300 - i * blockSize,
+                    width: blockSize,
+                    height: blockSize
+                });
+            }
+        }
+    }
     // 敵を生成
     function createEnemies() {
         enemies = [];
@@ -226,7 +299,8 @@
                 width: 25,
                 height: 25,
                 velX: -1 + Math.random() * 2,
-                type: Math.random() > 0.5 ? 'goomba' : 'koopa'
+                type: Math.random() > 0.5 ? 'goomba' : 'koopa',
+                alive: true
             });
         }
     }
@@ -245,7 +319,9 @@
         player.velY = 0;
         player.onGround = false;
         
+        createBlocks();
         createEnemies();
+        fireballs = [];
         updateUI();
     }
 
@@ -288,9 +364,48 @@
             player.onGround = false;
         }
 
+        // ファイヤーボール発射
+        if (keys.fire && fireballs.length < 3) { // 最大3発まで
+            fireballs.push({
+                x: player.x + (player.direction > 0 ? player.width : 0),
+                y: player.y + player.height / 2,
+                velX: player.direction * 8,
+                velY: -2,
+                width: 8,
+                height: 8,
+                bounces: 0
+            });
+            keys.fire = false; // 連射防止
+        }
+
         // 重力
         player.velY += 0.6;
-        player.y += player.velY;
+        
+        // ブロックとの衝突チェック（垂直方向）
+        let nextY = player.y + player.velY;
+        player.onGround = false;
+        
+        blocks.forEach(block => {
+            if (player.x < block.x + block.width && 
+                player.x + player.width > block.x) {
+                
+                // 上から落ちてくる場合
+                if (player.velY > 0 && player.y <= block.y && nextY + player.height >= block.y) {
+                    player.y = block.y - player.height;
+                    player.velY = 0;
+                    player.onGround = true;
+                }
+                // 下から跳ね上がる場合
+                else if (player.velY < 0 && player.y >= block.y + block.height && nextY <= block.y + block.height) {
+                    player.y = block.y + block.height;
+                    player.velY = 0;
+                }
+            }
+        });
+
+        if (!player.onGround) {
+            player.y += player.velY;
+        }
 
         // 地面の衝突
         const groundY = 340;
@@ -299,6 +414,18 @@
             player.velY = 0;
             player.onGround = true;
         }
+
+        // ブロックとの水平衝突チェック
+        blocks.forEach(block => {
+            if (checkCollision(player, block)) {
+                if (keys.left && player.x < block.x) {
+                    player.x = block.x - player.width;
+                }
+                if (keys.right && player.x > block.x) {
+                    player.x = block.x + block.width;
+                }
+            }
+        });
 
         // 画面境界
         if (player.x < gameState.cameraX) {
@@ -317,10 +444,21 @@
     // 敵の更新
     function updateEnemies() {
         enemies.forEach(enemy => {
+            if (!enemy.alive) return;
+            
             enemy.x += enemy.velX;
             
+            // ブロックとの衝突で方向転換
+            let hitBlock = false;
+            blocks.forEach(block => {
+                if (checkCollision(enemy, block)) {
+                    enemy.velX *= -1;
+                    hitBlock = true;
+                }
+            });
+            
             // 画面端で方向転換
-            if (enemy.x <= gameState.cameraX || enemy.x >= gameState.cameraX + canvas.width) {
+            if (!hitBlock && (enemy.x <= gameState.cameraX || enemy.x >= gameState.cameraX + canvas.width)) {
                 enemy.velX *= -1;
             }
 
@@ -337,6 +475,54 @@
         });
     }
 
+    // ファイヤーボールの更新
+    function updateFireballs() {
+        for (let i = fireballs.length - 1; i >= 0; i--) {
+            const fireball = fireballs[i];
+            
+            fireball.x += fireball.velX;
+            fireball.y += fireball.velY;
+            fireball.velY += 0.3; // 重力
+
+            // 地面で跳ねる
+            if (fireball.y >= 330) {
+                fireball.y = 330;
+                fireball.velY = -4;
+                fireball.bounces++;
+            }
+
+            // ブロックとの衝突
+            blocks.forEach(block => {
+                if (checkCollision(fireball, block)) {
+                    if (fireball.velY > 0) {
+                        fireball.y = block.y - fireball.height;
+                        fireball.velY = -4;
+                    } else {
+                        fireball.y = block.y + block.height;
+                        fireball.velY = 2;
+                    }
+                    fireball.bounces++;
+                }
+            });
+
+            // 敵との衝突
+            enemies.forEach(enemy => {
+                if (enemy.alive && checkCollision(fireball, enemy)) {
+                    enemy.alive = false;
+                    fireballs.splice(i, 1);
+                    return;
+                }
+            });
+
+            // 画面外または跳ねすぎたら削除
+            if (fireball.x < gameState.cameraX - 50 || 
+                fireball.x > gameState.cameraX + canvas.width + 50 || 
+                fireball.bounces > 5) {
+                fireballs.splice(i, 1);
+            }
+        }
+    }
+
     // カメラの更新
     function updateCamera() {
         // プレイヤーを中央付近に保つ
@@ -350,6 +536,7 @@
 
         updatePlayer();
         updateEnemies();
+        updateFireballs();
         updateCamera();
         
         // ゴール判定
@@ -394,9 +581,34 @@
         ctx.restore();
     }
 
+    // ブロックの描画
+    function drawBlocks() {
+        blocks.forEach(block => {
+            const screenX = block.x - gameState.cameraX;
+            
+            // 画面外は描画しない
+            if (screenX < -block.width || screenX > canvas.width) return;
+
+            // ブロック本体（茶色）
+            ctx.fillStyle = '#D2691E';
+            ctx.fillRect(screenX, block.y, block.width, block.height);
+            
+            // ブロックの縁（濃い茶色）
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screenX, block.y, block.width, block.height);
+            
+            // ハイライト（明るい茶色）
+            ctx.fillStyle = '#F4A460';
+            ctx.fillRect(screenX + 2, block.y + 2, block.width - 4, 8);
+            ctx.fillRect(screenX + 2, block.y + 2, 8, block.height - 4);
+        });
+    }
     // 敵の描画
     function drawEnemies() {
         enemies.forEach(enemy => {
+            if (!enemy.alive) return;
+            
             const screenX = enemy.x - gameState.cameraX;
             
             // 画面外は描画しない
@@ -424,6 +636,28 @@
                 ctx.fillStyle = '#32CD32';
                 ctx.fillRect(screenX + 3, enemy.y + 3, enemy.width - 6, enemy.height - 6);
             }
+        });
+    }
+
+    // ファイヤーボールの描画
+    function drawFireballs() {
+        fireballs.forEach(fireball => {
+            const screenX = fireball.x - gameState.cameraX;
+            
+            // 画面外は描画しない
+            if (screenX < -fireball.width || screenX > canvas.width) return;
+
+            // ファイヤーボール（オレンジの円）
+            ctx.fillStyle = '#FF4500';
+            ctx.beginPath();
+            ctx.arc(screenX + fireball.width / 2, fireball.y + fireball.height / 2, fireball.width / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 内側のハイライト
+            ctx.fillStyle = '#FFA500';
+            ctx.beginPath();
+            ctx.arc(screenX + fireball.width / 2, fireball.y + fireball.height / 2, fireball.width / 3, 0, Math.PI * 2);
+            ctx.fill();
         });
     }
 
@@ -479,8 +713,10 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
         drawBackground();
+        drawBlocks();
         drawPlayer();
         drawEnemies();
+        drawFireballs();
 
         // ゲームオーバー・クリア表示
         if (gameState.gameOver) {
@@ -511,7 +747,8 @@
             leftBtn: () => keys.left = true,
             rightBtn: () => keys.right = true,
             upBtn: () => keys.up = true,
-            jumpBtn: () => keys.jump = true
+            jumpBtn: () => keys.jump = true,
+            fireBtn: () => keys.fire = true
         };
 
         Object.keys(buttons).forEach(id => {
@@ -527,6 +764,8 @@
                 e.preventDefault();
                 if (id === 'jumpBtn') {
                     keys.jump = false;
+                } else if (id === 'fireBtn') {
+                    keys.fire = false;
                 } else {
                     keys.left = false;
                     keys.right = false;
@@ -544,6 +783,8 @@
                 e.preventDefault();
                 if (id === 'jumpBtn') {
                     keys.jump = false;
+                } else if (id === 'fireBtn') {
+                    keys.fire = false;
                 } else {
                     keys.left = false;
                     keys.right = false;
@@ -567,6 +808,11 @@
                 keys.jump = true;
                 e.preventDefault();
                 break;
+            case 'x':
+            case 'X':
+                keys.fire = true;
+                e.preventDefault();
+                break;
         }
     });
 
@@ -581,6 +827,10 @@
             case ' ':
             case 'ArrowUp':
                 keys.jump = false;
+                break;
+            case 'x':
+            case 'X':
+                keys.fire = false;
                 break;
         }
     });
