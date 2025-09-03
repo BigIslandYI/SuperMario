@@ -228,12 +228,13 @@
     function createBlocks() {
         blocks = [];
         const blockSize = 40;
+        const groundLevel = canvas.height - 60; // 地面ブロックの上面
         
         // 階段状のブロック
         for (let i = 0; i < 3; i++) {
             blocks.push({
                 x: 300 + i * blockSize,
-                y: 300 - i * blockSize,
+                y: groundLevel - (i + 1) * blockSize,
                 width: blockSize,
                 height: blockSize
             });
@@ -243,7 +244,7 @@
         for (let i = 0; i < 4; i++) {
             blocks.push({
                 x: 600 + i * blockSize,
-                y: 220,
+                y: groundLevel - 120,
                 width: blockSize,
                 height: blockSize
             });
@@ -253,7 +254,7 @@
         for (let i = 0; i < 5; i++) {
             blocks.push({
                 x: 900,
-                y: 300 - i * blockSize,
+                y: groundLevel - (i + 1) * blockSize,
                 width: blockSize,
                 height: blockSize
             });
@@ -263,7 +264,7 @@
         for (let i = 0; i < 6; i++) {
             blocks.push({
                 x: 1200 + i * blockSize,
-                y: 200,
+                y: groundLevel - 140,
                 width: blockSize,
                 height: blockSize
             });
@@ -272,7 +273,7 @@
         // ジャンプ台
         blocks.push({
             x: 1500,
-            y: 280,
+            y: groundLevel - 60,
             width: blockSize,
             height: blockSize
         });
@@ -282,7 +283,7 @@
             for (let j = 0; j < 3; j++) {
                 blocks.push({
                     x: 1700 + j * blockSize,
-                    y: 300 - i * blockSize,
+                    y: groundLevel - (i + 1) * blockSize,
                     width: blockSize,
                     height: blockSize
                 });
@@ -292,10 +293,11 @@
     // 敵を生成
     function createEnemies() {
         enemies = [];
+        const groundY = canvas.height - 60 - 25; // 敵の高さを考慮した地面位置
         for (let i = 0; i < 15; i++) {
             enemies.push({
                 x: 400 + i * 120 + Math.random() * 50,
-                y: 320,
+                y: groundY,
                 width: 25,
                 height: 25,
                 velX: -1 + Math.random() * 2,
@@ -315,7 +317,7 @@
         gameState.invulnerableTime = 0;
         
         player.x = 100;
-        player.y = 300;
+        player.y = canvas.height - 60 - player.height; // 地面の上に配置
         player.velY = 0;
         player.onGround = false;
         
@@ -408,7 +410,7 @@
         }
 
         // 地面の衝突
-        const groundY = 340;
+        const groundY = canvas.height - 60 - player.height; // 地面ブロックの上
         if (player.y >= groundY) {
             player.y = groundY;
             player.velY = 0;
@@ -485,8 +487,9 @@
             fireball.velY += 0.3; // 重力
 
             // 地面で跳ねる
-            if (fireball.y >= 330) {
-                fireball.y = 330;
+            const groundLevel = canvas.height - 60;
+            if (fireball.y >= groundLevel - 10) {
+                fireball.y = groundLevel - 10;
                 fireball.velY = -4;
                 fireball.bounces++;
             }
